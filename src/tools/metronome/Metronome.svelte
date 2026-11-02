@@ -1,7 +1,6 @@
 <script lang="ts">
   import { hashParams, route, setHashParams } from '../../lib/router.svelte'
   import { load, save } from '../../lib/storage'
-  import { MetronomeEngine } from './engine'
   import {
     DEFAULT_BEATS,
     DEFAULT_BPM,
@@ -13,17 +12,14 @@
     fromQuery,
     toQuery,
   } from './metronome'
+  import { engine, player, toggle } from './player.svelte'
 
   const path = route.path
   // Precedence: URL > saved settings > defaults.
   const fromUrl = fromQuery(hashParams())
   let bpm = $state(fromUrl.bpm ?? clampBpm(load('metronome.bpm', DEFAULT_BPM)))
   let beatsPerBar = $state(fromUrl.beats ?? load('metronome.beats', DEFAULT_BEATS))
-  let running = $state(false)
-  let current = $state(-1)
   let taps: number[] = []
-
-  const engine = new MetronomeEngine((b) => (current = b))
 
   $effect(() => {
     engine.bpm = clampBpm(bpm)
@@ -34,16 +30,7 @@
     save('metronome.beats', beatsPerBar)
   })
   $effect(() => setHashParams(path, toQuery(bpm, beatsPerBar)))
-  $effect(() => () => engine.stop())
-
-  function toggle() {
-    running = !running
-    if (running) engine.start()
-    else {
-      engine.stop()
-      current = -1
-    }
-  }
+  // No stop-on-unmount: playback lives in player.svelte.ts so it continues on other tabs.
 
   function nudge(d: number) {
     bpm = clampBpm(bpm + d)
@@ -81,12 +68,12 @@
 
   <div class="beats" aria-hidden="true">
     {#each { length: beatsPerBar }, i (i)}
-      <span class="dot" class:on={current === i} class:accent={i === 0 && beatsPerBar > 1}></span>
+      <span class="dot" class:on={player.current === i} class:accent={i === 0 && beatsPerBar > 1}></span>
     {/each}
   </div>
 
   <div class="controls">
-    <button class="primary" onclick={toggle}>{running ? 'Stop' : 'Start'}</button>
+    <button class="primary" onclick={toggle}>{player.running ? 'Stop' : 'Start'}</button>
     <button onclick={tap}>Tap tempo</button>
     <label>
       Beats per bar
